@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 
 // Middleware
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: "https://mental-health-app-livid.vercel.app/" }));
 app.use(express.json()); // อนุญาตให้ Express อ่าน JSON body ใน Request ได้
 
 //  ตั้งค่า Cloudinary
@@ -25,8 +25,12 @@ cloudinary.config({
 const storage = multer.memoryStorage(); // ใช้ memoryStorage เพื่อเก็บไฟล์ใน RAM
 const upload = multer({ storage: storage });
 
-// ---------------- MongoDB Connection ----------------
+//  MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error("Missing MONGODB_URI in environment variables.");
+  process.exit(1);
+}
 
 mongoose
   .connect(MONGODB_URI)
@@ -36,7 +40,7 @@ mongoose
     process.exit(1); // ออกจาก process หากเชื่อมต่อไม่ได้
   });
 
-// ---------------- MongoDB Schema & Model ----------------
+//  MongoDB Schema & Model
 // กำหนด Schema สำหรับ E-book
 const ebookSchema = new mongoose.Schema({
   title: {
@@ -49,7 +53,7 @@ const ebookSchema = new mongoose.Schema({
   },
   imageUrl: {
     type: String,
-    default: "https://placehold.co/300x200/cccccc/333333?text=No+Image", // รูปภาพ fallback
+    default: "https://placehold.co/300x200/cccccc/333333?text=No+Image",
   },
   public_id: {
     // เก็บ public_id ของ Cloudinary เพื่อใช้ลบหรืออัปเดต
@@ -60,7 +64,7 @@ const ebookSchema = new mongoose.Schema({
 // สร้าง Model จาก Schema
 const Ebook = mongoose.model("Ebook", ebookSchema);
 
-// ---------------- API Routes ----------------
+//  API
 // GET: ดึงE-bookทั้งหมด
 app.get("/api/ebooks", async (req, res) => {
   try {
@@ -68,6 +72,20 @@ app.get("/api/ebooks", async (req, res) => {
     res.json(ebooks); // ส่ง E-book กลับไปในรูปแบบ JSON
   } catch (err) {
     console.error("Error fetching ebooks:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// GET:id ดึงE-bookตามid
+app.get("/api/ebooks/:id", async (req, res) => {
+  try {
+    const ebook = await Ebook.findById(req.params.id);
+    if (!ebook) {
+      return res.status(404).json({ message: "Ebook not found" });
+    }
+    res.json(ebook);
+  } catch (err) {
+    console.error("Error fetching single ebook:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
@@ -135,9 +153,7 @@ app.put("/api/ebooks/:id", upload.single("ebookImage"), async (req, res) => {
         await cloudinary.uploader.destroy(ebook.public_id);
       }
 
-      const dataUri = `data:${
-        req.file.mimetype
-      };base64,${req.file.buffer.toString("base64")}`;
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
       const uploadResult = await cloudinary.uploader.upload(dataUri, {
         folder: "ebook_covers",
       });
@@ -157,13 +173,15 @@ app.put("/api/ebooks/:id", upload.single("ebookImage"), async (req, res) => {
 app.delete("/api/ebooks/:id", async (req, res) => {
   try {
     const ebook = await Ebook.findByIdAndDelete(req.params.id);
-    if (!ebook) {// ถ้าไม่เจอe-book จะแสดงข้อความ
-      return res.status(404).json({ message: "E-book not found" });
+    if (!ebook) {
+      return res.status(404).json({ message: "Ebook not found" });
     }
 
-    if (ebook.public_id) {// ถ้ามีรูปจะลบรูป
+    // ถ้ามีรูปจะลบรูป
+    if (ebook.public_id) {
       await cloudinary.uploader.destroy(ebook.public_id);
     }
+    
     res.json({ message: "Ebook and its image deleted successfully" });
   } catch (err) {
     console.error("Error deleting ebook:", err);
@@ -171,7 +189,7 @@ app.delete("/api/ebooks/:id", async (req, res) => {
   }
 });
 
-// ---------------- Start Server ----------------
+//  Start Server
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Access E-books API at: http://localhost:${PORT}/api/ebooks`);
