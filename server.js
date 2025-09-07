@@ -9,9 +9,24 @@ const cloudinary = require("cloudinary").v2; // สำหรับอัปโ�
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// Middleware
-app.use(cors({ origin: "https://mental-health-app-livid.vercel.app/" }));
-app.use(express.json()); // อนุญาตให้ Express อ่าน JSON body ใน Request ได้
+// กำหนด Origin สำหรับ CORS
+const allowedOrigins = [
+  'http://localhost:5173', // สำหรับ Local Development
+  'https://mental-health-app-livid.vercel.app' // URL ของ Frontend ที่ Deploy แล้ว
+];
+
+// Middleware สำหรับ CORS
+app.use(cors({
+  origin: function(origin, callback) {
+    // อนุญาตการร้องขอจาก Origin ที่อยู่ในรายการ
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
+app.use(express.json());
 
 //  ตั้งค่า Cloudinary
 cloudinary.config({
